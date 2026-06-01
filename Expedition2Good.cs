@@ -1,14 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using ExileCore2;
 using ExileCore2.PoEMemory.Components;
+using ExileCore2.PoEMemory;
 using ExileCore2.PoEMemory.Elements;
 using ExileCore2.PoEMemory.FilesInMemory;
 using ExileCore2.PoEMemory.Models;
 using ExileCore2.Shared.Cache;
 using ExileCore2.Shared.Helpers;
+using RectangleF = ExileCore2.Shared.RectangleF;
 using Vector2 = System.Numerics.Vector2;
 
 namespace Expedition2Good;
@@ -17,6 +19,7 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
 {
     private readonly TimeCache<List<(LabelOnGround, Expedition2EncounterLabel)>> _labels;
     private readonly TimeCache<Dictionary<Expedition2Recipe, (double, bool)>> _price;
+    private static readonly (double, bool) NoPrice = (0, false);
 
     public Expedition2Good()
     {
@@ -70,7 +73,6 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
 
     public override void Render()
     {
-        var getCurrencyValue = GameController.PluginBridge.GetMethod<Func<BaseItemType, double>>("NinjaPrice.GetBaseItemTypeValue") ?? (_ => 0);
         if (_labels.Value is { Count: > 0 } labels)
         {
             var allRecipes = GameController.Files.Expedition2Recipes.EntriesList.ToLookup(x => x.RuneCountRequired);
@@ -88,7 +90,7 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                     var recipes = allRecipes.Where(x => x.Key <= label.RuneCount)
                         .SelectMany(x => x)
                         .Where(x => x.Runes.ElementAtOrDefault(label.FixedRunePosition)?.Equals(label.FixedRune) == true)
-                        .Select(x => (x, value: _price.Value.GetValueOrDefault(x))).OrderByDescending(x => x.value).ToList();
+                        .Select(x => (x, value: GetPriceOrDefault(x))).OrderByDescending(x => x.value.Item1).ToList();
                     if (Settings.MinimumValueToShow > 0)
                     {
                         recipes = recipes.Where(x => x.value.Item1 >= Settings.MinimumValueToShow).ToList();
@@ -124,15 +126,85 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
 
         if (GameController.IngameState.IngameUi.Expedition2Window is { IsVisible: true } expedition2Window)
         {
-            var options = expedition2Window.Options.Select(x => (x, _price.Value.GetValueOrDefault(x.Recipe))).OrderByDescending(x => x.Item2.Item1).ToList();
+            var windowRect = expedition2Window.GetClientRectCache;
+            if (!IsDrawableRect(windowRect))
+            {
+                return;
+            }
+
+            var options = expedition2Window.Options
+                .Where(x => x is { IsValid: true, IsVisible: true, IsVisibleLocal: true, Recipe: not null })
+                .Select(x => (x, GetPriceOrDefault(x.Recipe)))
+                .OrderByDescending(x => x.Item2.Item1)
+                .ToList();
             var first = true;
             foreach (var (option, (value, overridden)) in options)
             {
+                var optionRect = option.GetClientRectCache;
+                var bounds = GetVisibleBounds(option, windowRect);
+                if (!Intersects(bounds, optionRect) || !Contains(bounds, optionRect.TopLeft))
+                {
+                    continue;
+                }
+
+                var text = $"{(overridden ? "~" : "")}{value,7:F2}";
+                var textSize = Graphics.MeasureText(text);
+                var position = ClampTextPosition(optionRect.TopLeft, textSize, bounds);
                 var textColor = first ? Settings.TopPickColor : value >= Settings.ValuableColorThreshold ? Settings.ValuableTextColor : Settings.TextColor;
-                var recipe = option.Recipe;
-                Graphics.DrawTextWithBackground($"{(overridden ? "~" : "")}{value,7:F2}", option.GetClientRectCache.TopLeft, textColor, Color.Black);
+                Graphics.DrawTextWithBackground(text, position, textColor, Color.Black);
                 first = false;
             }
         }
+    }
+
+    private (double, bool) GetPriceOrDefault(Expedition2Recipe recipe)
+    {
+        return recipe != null && _price.Value.TryGetValue(recipe, out var price) ? price : NoPrice;
+    }
+
+    private static bool IsDrawableRect(RectangleF rect)
+    {
+        return rect.Width > 1 && rect.Height > 1;
+    }
+
+    private static bool Intersects(RectangleF a, RectangleF b)
+    {
+        return IsDrawableRect(b) && a.Left < b.Right && a.Right > b.Left && a.Top < b.Bottom && a.Bottom > b.Top;
+    }
+
+    private static bool Contains(RectangleF rect, Vector2 point)
+    {
+        return point.X >= rect.Left && point.X <= rect.Right && point.Y >= rect.Top && point.Y <= rect.Bottom;
+    }
+
+    private static RectangleF GetVisibleBounds(Element element, RectangleF fallbackBounds)
+    {
+        var bounds = fallbackBounds;
+        for (var parent = element.Parent; parent is { IsValid: true }; parent = parent.Parent)
+        {
+            var parentRect = parent.GetClientRectCache;
+            if (IsDrawableRect(parentRect) && Intersects(bounds, parentRect))
+            {
+                bounds = Intersect(bounds, parentRect);
+            }
+        }
+
+        return bounds;
+    }
+
+    private static RectangleF Intersect(RectangleF a, RectangleF b)
+    {
+        var left = Math.Max(a.Left, b.Left);
+        var top = Math.Max(a.Top, b.Top);
+        var right = Math.Min(a.Right, b.Right);
+        var bottom = Math.Min(a.Bottom, b.Bottom);
+        return new RectangleF(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+    }
+
+    private static Vector2 ClampTextPosition(Vector2 position, Vector2 textSize, RectangleF bounds)
+    {
+        var maxX = Math.Max(bounds.Left, bounds.Right - textSize.X);
+        var maxY = Math.Max(bounds.Top, bounds.Bottom - textSize.Y);
+        return new Vector2(Math.Clamp(position.X, bounds.Left, maxX), Math.Clamp(position.Y, bounds.Top, maxY));
     }
 }
