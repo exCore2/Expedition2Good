@@ -78,24 +78,29 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
             var allRecipes = GameController.Files.Expedition2Recipes.EntriesList.ToLookup(x => x.RuneCountRequired);
             if (allRecipes.Count > 0)
             {
+                var areaLevel = GameController.IngameState.Data.CurrentAreaLevel;
+                var expedition2RunesWeights = GameController.Files.Expedition2RunesWeights.EntriesList;
                 foreach (var (log, label) in labels)
                 {
-                    if (Settings.DisplayOnlyNonActivated &&
-                        log.ItemOnGround?.GetComponent<StateMachine>()?.States is { } states &&
+                    var entity = log.ItemOnGround;
+                    if (entity == null || 
+                        Settings.DisplayOnlyNonActivated &&
+                        entity?.GetComponent<StateMachine>()?.States is { } states &&
                         states.Any(s => s.Name == "activated" && ((int)s.Value == 6)))
                     {
                         continue;
                     }
 
-                    var allowedRuneCounts = GameController.Files.Expedition2RunesWeights.EntriesList.Where(x => x.RuneSlot - 1 == label.FixedRunePosition)
+                    var allowedRuneCounts = expedition2RunesWeights.Where(x => x.RuneSlot - 1 == label.FixedRunePosition)
                         .Where(x => x.Rune.Equals(label.FixedRune))
-                        .Where(x => x.Level <= GameController.IngameState.Data.CurrentAreaLevel)
+                        .Where(x => x.Level <= areaLevel)
                         .Select(x => x.SlotCount)
                         .ToHashSet();
                     var recipes = allRecipes.Where(x => x.Key <= label.RuneCount)
                         .SelectMany(x => x)
-                        .Where(x => x.Runes.ElementAtOrDefault(label.FixedRunePosition)?.Equals(label.FixedRune) == true)
                         .Where(x => allowedRuneCounts.Contains(x.RuneCountRequired))
+                        .Where(x => x.MinLevelReq <= areaLevel && x.MaxLevelReq >= areaLevel)
+                        .Where(x => x.Runes.ElementAtOrDefault(label.FixedRunePosition)?.Equals(label.FixedRune) == true)
                         .Select(x => (x, value: GetPriceOrDefault(x)))
                         .OrderByDescending(x => x.value.Item1)
                         .ToList();
@@ -116,6 +121,11 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                     var first = true;
                     foreach (var (recipe, (value, overridden)) in recipes)
                     {
+                        if (first && Settings.ShowOnMinimap)
+                        {
+                            Graphics.DrawTextWithBackground($"Rune {(overridden ? "~" : "")}{value:F1}", Graphics.GridToMap(entity.GridPos, entity.GridPos), Color.Black);
+                        }
+
                         var textColor = first ? Settings.TopPickColor : value >= Settings.ValuableColorThreshold ? Settings.ValuableTextColor : Settings.TextColor;
                         var size = Graphics.DrawTextWithBackground(
                             $"{(overridden ? "~" : "")}{value,7:F2} {(string.IsNullOrWhiteSpace(recipe.Description) ? recipe.Reward?.BaseName : recipe.Description)} x{recipe.RewardCount}",
@@ -123,6 +133,7 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                             textColor, Color.Black);
                         y += size.Y;
                         first = false;
+
                     }
 
                     //GameController.InspectObject(recipes, "Recipes");

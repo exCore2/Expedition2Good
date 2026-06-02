@@ -9,6 +9,7 @@ namespace Expedition2Good;
 public class Expedition2GoodSettings : ISettings
 {
     public ToggleNode Enable { get; set; } = new ToggleNode(false);
+    public ToggleNode ShowOnMinimap { get; set; } = new ToggleNode(true);
 
     public ColorNode TextColor { get; set; } = new ColorNode(Color.LightBlue);
     public ColorNode TopPickColor { get; set; } = new ColorNode(Color.LightGreen);
