@@ -77,12 +77,12 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
         var entities = GameController.EntityListWrapper.ValidEntitiesByType[EntityType.IngameIcon]
             .Where(x => x.Metadata.StartsWith("Metadata/MiscellaneousObjects/Expedition2/Expedition2Encounter", StringComparison.Ordinal)).ToList();
 
+        var areaLevel = GameController.IngameState.Data.CurrentAreaLevel;
         if (_labels.Value is { Count: > 0 } labels)
         {
             var allRecipes = GameController.Files.Expedition2Recipes.EntriesList.ToLookup(x => x.RuneCountRequired);
             if (allRecipes.Count > 0)
             {
-                var areaLevel = GameController.IngameState.Data.CurrentAreaLevel;
                 var expedition2RunesWeights = GameController.Files.Expedition2RunesWeights.EntriesList;
                 foreach (var (log, label) in labels)
                 {
@@ -97,19 +97,7 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                     }
 
                     entities.Remove(entity);
-                    var allowedRuneCounts = expedition2RunesWeights.Where(x => x.RuneSlot - 1 == label.FixedRunePosition)
-                        .Where(x => x.Rune?.Equals(label?.FixedRune) == true)
-                        .Where(x => x.Level <= areaLevel)
-                        .Select(x => x.SlotCount)
-                        .ToHashSet();
-                    var recipes = allRecipes.Where(x => x.Key <= label.RuneCount)
-                        .SelectMany(x => x)
-                        .Where(x => allowedRuneCounts.Contains(x.RuneCountRequired))
-                        .Where(x => x.MinLevelReq <= areaLevel && x.MaxLevelReq >= areaLevel)
-                        .Where(x => x.Runes.ElementAtOrDefault(label.FixedRunePosition)?.Equals(label.FixedRune) == true)
-                        .Select(x => (x, value: GetPriceOrDefault(x)))
-                        .OrderByDescending(x => x.value.Item1)
-                        .ToList();
+                    var recipes = GetRecipes(expedition2RunesWeights, areaLevel, allRecipes, label?.Data);
                     if (Settings.MinimumValueToShow > 0)
                     {
                         recipes = recipes.Where(x => x.value.Item1 >= Settings.MinimumValueToShow).ToList();
@@ -154,11 +142,31 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
         {
             foreach (var entity in entities)
             {
-                var states = entity?.GetComponent<StateMachine>()?.States;
-                var runeCount = states?.FirstOrDefault(x => x.Name == "sockets")?.Value;
-                if (runeCount != null)
+                var found = false;
+                if (entity?.HashComponents.GetValueOrDefault((ushort)0x87B2) is not 0 and { } dataAddr)
                 {
-                    Graphics.DrawTextWithBackground($"Unknown rune {runeCount} sockets", Graphics.GridToMap(entity.GridPos, entity.GridPos), Color.Black);
+                    var data = RemoteMemoryObject.GetObjectStatic<Expedition2EncounterData>(dataAddr);
+                    var expedition2RunesWeights = GameController.Files.Expedition2RunesWeights.EntriesList;
+                    var allRecipes = GameController.Files.Expedition2Recipes.EntriesList.ToLookup(x => x.RuneCountRequired);
+                    var recipes = GetRecipes(expedition2RunesWeights, areaLevel, allRecipes, data).FirstOrDefault();
+                    if (recipes != default)
+                    {
+                        var value = recipes.value.Item1;
+                        var color = value >= Settings.ValuableColorThreshold ? Settings.ValuableTextColor : Settings.TextColor;
+                        Graphics.DrawTextWithBackground($"Rune {(recipes.value.Item2 ? "~" : "")}{value:F1} ({data.RuneCount} sockets)",
+                            Graphics.GridToMap(entity.GridPos, entity.GridPos), color, Color.Black);
+                        found = true;
+                    }
+                }
+
+                if (!found)
+                {
+                    var states = entity?.GetComponent<StateMachine>()?.States;
+                    var runeCount = states?.FirstOrDefault(x => x.Name == "sockets")?.Value;
+                    if (runeCount != null)
+                    {
+                        Graphics.DrawTextWithBackground($"Unknown rune {runeCount} sockets", Graphics.GridToMap(entity.GridPos, entity.GridPos), Color.Black);
+                    }
                 }
             }
         }
@@ -197,6 +205,24 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                 first = false;
             }
         }
+    }
+
+    private List<(Expedition2Recipe x, (double, bool) value)> GetRecipes(List<Expedition2RunesWeight> expedition2RunesWeights, int areaLevel, ILookup<int, Expedition2Recipe> allRecipes, Expedition2EncounterData data)
+    {
+        var allowedRuneCounts = expedition2RunesWeights.Where(x => x.RuneSlot - 1 == data?.FixedRunePosition)
+            .Where(x => x.Rune?.Equals(data?.FixedRune) == true)
+            .Where(x => x.Level <= areaLevel)
+            .Select(x => x.SlotCount)
+            .ToHashSet();
+        var recipes = allRecipes.Where(x => x.Key <= data?.RuneCount)
+            .SelectMany(x => x)
+            .Where(x => allowedRuneCounts.Contains(x.RuneCountRequired))
+            .Where(x => x.MinLevelReq <= areaLevel && x.MaxLevelReq >= areaLevel)
+            .Where(x => x.Runes.ElementAtOrDefault(data?.FixedRunePosition ?? 0)?.Equals(data?.FixedRune) == true)
+            .Select(x => (x, value: GetPriceOrDefault(x)))
+            .OrderByDescending(x => x.value.Item1)
+            .ToList();
+        return recipes;
     }
 
     private (double, bool) GetPriceOrDefault(Expedition2Recipe recipe)
