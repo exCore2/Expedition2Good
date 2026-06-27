@@ -98,6 +98,7 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
 
                     entities.Remove(entity);
                     var recipes = GetRecipes(expedition2RunesWeights, areaLevel, allRecipes, label?.Data);
+                    var allValidRecipes = recipes.Select(x => x.x).ToList();
                     if (Settings.MinimumValueToShow > 0)
                     {
                         recipes = recipes.Where(x => x.value.Item1 >= Settings.MinimumValueToShow).ToList();
@@ -118,7 +119,8 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                         if (first && Settings.ShowOnMinimap)
                         {
                             var color = value >= Settings.ValuableColorThreshold ? Settings.ValuableTextColor : Settings.TextColor;
-                            Graphics.DrawTextWithBackground($"Rune {(overridden ? "~" : "")}{value:F1} ({label.RuneCount} sockets)",
+                            var text = GetMapText(overridden, value, allValidRecipes, label.Data);
+                            Graphics.DrawTextWithBackground(text,
                                 Graphics.GridToMap(entity.GridPos, entity.GridPos), color, Color.Black);
                         }
 
@@ -148,12 +150,13 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                     var data = RemoteMemoryObject.GetObjectStatic<Expedition2EncounterData>(dataAddr);
                     var expedition2RunesWeights = GameController.Files.Expedition2RunesWeights.EntriesList;
                     var allRecipes = GameController.Files.Expedition2Recipes.EntriesList.ToLookup(x => x.RuneCountRequired);
-                    var recipes = GetRecipes(expedition2RunesWeights, areaLevel, allRecipes, data).FirstOrDefault();
+                    var allValidRecipes = GetRecipes(expedition2RunesWeights, areaLevel, allRecipes, data);
+                    var recipes = allValidRecipes.FirstOrDefault();
                     if (recipes != default)
                     {
                         var value = recipes.value.Item1;
                         var color = value >= Settings.ValuableColorThreshold ? Settings.ValuableTextColor : Settings.TextColor;
-                        Graphics.DrawTextWithBackground($"Rune {(recipes.value.Item2 ? "~" : "")}{value:F1} ({data.RuneCount} sockets)",
+                        Graphics.DrawTextWithBackground(GetMapText(recipes.value.Item2, recipes.value.Item1, allValidRecipes.Select(x=>x.x).ToList(), data),
                             Graphics.GridToMap(entity.GridPos, entity.GridPos), color, Color.Black);
                         found = true;
                     }
@@ -207,6 +210,28 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
         }
     }
 
+    private string GetMapText(bool overridden, double value, IReadOnlyCollection<Expedition2Recipe> recipes, Expedition2EncounterData data)
+    {
+        var text = $"Rune {(overridden ? "~" : "")}{value:F1} ({data.RuneCount} sockets)";
+        if (Settings.ShowTransferredRuneSlots && data.PassedOnRunePositions is { Count: > 0 } positions)
+        {
+            if (Settings.ShowTransferredRuneOptions)
+            {
+                foreach (var position in positions)
+                {
+                    var runes = string.Join(",", recipes.Select(x => x.Runes.ElementAtOrDefault(position)).Where(x => x != null).Distinct().Select(r => r.Id).OrderBy(x => x));
+                    text += $"\nTransfers rune {position}: {runes}";
+                }
+            }
+            else
+            {
+                text += $"\nTransfers rune {string.Join(",", positions)}";
+            }
+        }
+
+        return text;
+    }
+
     private List<(Expedition2Recipe x, (double, bool) value)> GetRecipes(List<Expedition2RunesWeight> expedition2RunesWeights, int areaLevel, ILookup<int, Expedition2Recipe> allRecipes, Expedition2EncounterData data)
     {
         var allowedRuneCounts = expedition2RunesWeights.Where(x => x.RuneSlot - 1 == data?.FixedRunePosition)
@@ -233,30 +258,6 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
     private static bool IsDrawableRect(RectangleF rect)
     {
         return rect.Width > 1 && rect.Height > 1;
-    }
-
-    private static RectangleF GetVisibleBounds(Element element, RectangleF fallbackBounds)
-    {
-        var bounds = fallbackBounds;
-        for (var parent = element.Parent; parent is { IsValid: true }; parent = parent.Parent)
-        {
-            var parentRect = parent.GetClientRectCache;
-            if (IsDrawableRect(parentRect) && bounds.Intersects(parentRect))
-            {
-                bounds = Intersect(bounds, parentRect);
-            }
-        }
-
-        return bounds;
-    }
-
-    private static RectangleF Intersect(RectangleF a, RectangleF b)
-    {
-        var left = Math.Max(a.Left, b.Left);
-        var top = Math.Max(a.Top, b.Top);
-        var right = Math.Min(a.Right, b.Right);
-        var bottom = Math.Min(a.Bottom, b.Bottom);
-        return new RectangleF(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
     }
 
     private static Vector2 ClampTextPosition(Vector2 position, Vector2 textSize, RectangleF bounds)
