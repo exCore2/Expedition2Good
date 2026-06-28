@@ -22,7 +22,7 @@ public class Expedition2GoodSettings : ISettings
     [Menu(null, "Maximum number of recipes listed per label (highest value first). Set to 0 to show all.")]
     public RangeNode<int> MaxItemsToShow { get; set; } = new RangeNode<int>(0, 0, 20);
 
-    [Menu(null, "Hides expedition encounters whose StateMachine 'activated' state equals 6.")]
+    [Menu(null, "Hides activated encounters")]
     public ToggleNode DisplayOnlyNonActivated { get; set; } = new ToggleNode(false);
 
     [Menu(null, "Horizontal offset (pixels) of the text relative to the on-ground object label. 0 keeps the original position.")]

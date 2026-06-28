@@ -7,6 +7,7 @@ using ExileCore2.PoEMemory.Components;
 using ExileCore2.PoEMemory;
 using ExileCore2.PoEMemory.Elements;
 using ExileCore2.PoEMemory.FilesInMemory;
+using ExileCore2.PoEMemory.MemoryObjects;
 using ExileCore2.PoEMemory.Models;
 using ExileCore2.Shared.Cache;
 using ExileCore2.Shared.Enums;
@@ -87,14 +88,7 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                 foreach (var (log, label) in labels)
                 {
                     var entity = log.ItemOnGround;
-                    var states = entity?.GetComponent<StateMachine>()?.States;
-                    if (entity == null ||
-                        Settings.DisplayOnlyNonActivated &&
-                        states != null &&
-                        states.Any(s => s.Name == "activated" && ((int)s.Value == 6)))
-                    {
-                        continue;
-                    }
+                    if (IsActivated(entity)) continue;
 
                     entities.Remove(entity);
                     var recipes = GetRecipes(expedition2RunesWeights, areaLevel, allRecipes, label?.Data);
@@ -144,6 +138,8 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
         {
             foreach (var entity in entities)
             {
+                if (IsActivated(entity)) continue;
+
                 var found = false;
                 if (entity?.HashComponents.GetValueOrDefault((ushort)0x87B2) is not 0 and { } dataAddr)
                 {
@@ -208,6 +204,15 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                 first = false;
             }
         }
+    }
+
+    private bool IsActivated(Entity entity)
+    {
+        var states = entity?.GetComponent<StateMachine>()?.States;
+        return entity == null ||
+               Settings.DisplayOnlyNonActivated &&
+               states != null &&
+               states.Any(s => s.Name == "activated" && (int)s.Value is 6 or 7 or 8);
     }
 
     private string GetMapText(bool overridden, double value, IReadOnlyCollection<Expedition2Recipe> recipes, Expedition2EncounterData data)
