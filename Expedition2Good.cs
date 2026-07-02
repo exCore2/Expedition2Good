@@ -217,9 +217,16 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
 
     private List<List<(string text, Color color)>> GetMapText(bool overridden, double value, IReadOnlyCollection<Expedition2Recipe> recipes, Expedition2EncounterData data, Color baseColor)
     {
+        var socketColor = Settings.HighlightSocketCount && data.RuneCount >= Settings.MinimumSocketsToHighlight
+            ? Settings.SocketCountHighlightColor.Value
+            : baseColor;
         var lines = new List<List<(string text, Color color)>>
         {
-            new() { ($"Rune {(overridden ? "~" : "")}{value:F1} ({data.RuneCount} sockets)", baseColor) },
+            new()
+            {
+                ($"Rune {(overridden ? "~" : "")}{value:F1} ", baseColor),
+                ($"({data.RuneCount} sockets)", socketColor),
+            },
         };
         if (Settings.ShowTransferredRuneSlots && data.PassedOnRunePositions is { Count: > 0 } positions)
         {
@@ -229,6 +236,15 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                 {
                     var runeIds = recipes.Select(x => x.Runes.ElementAtOrDefault(position)).Where(x => x != null)
                         .Select(r => r.Id).Distinct().OrderBy(x => x).ToList();
+                    if (Settings.HideNonHighlightedTransferredRunes)
+                    {
+                        runeIds = runeIds.Where(id => GetHighlightColor(id) != null).ToList();
+                        if (runeIds.Count == 0)
+                        {
+                            continue;
+                        }
+                    }
+
                     var segments = new List<(string text, Color color)> { ($"Transfers rune {position}: ", baseColor) };
                     for (var i = 0; i < runeIds.Count; i++)
                     {
