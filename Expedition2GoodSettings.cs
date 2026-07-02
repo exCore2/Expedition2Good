@@ -65,9 +65,6 @@ public class PriceOverride
 [Submenu]
 public class HighlightedRune
 {
-    // Stable identity appended via "###" so the ImGui collapsing header keeps a constant ID while the
-    // visible name changes as you type. Without it, every keystroke is treated as a new widget and the
-    // text field loses focus after a single character.
     private readonly string _id = System.Guid.NewGuid().ToString("N");
     public TextNode Name { get; set; } = new TextNode("");
     public ColorNode HighlightColor { get; set; } = new ColorNode(Color.Gold);
