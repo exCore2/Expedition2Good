@@ -79,6 +79,7 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
             .Where(x => x.Metadata.StartsWith("Metadata/MiscellaneousObjects/Expedition2/Expedition2Encounter", StringComparison.Ordinal)).ToList();
 
         var areaLevel = GameController.IngameState.Data.CurrentAreaLevel;
+        var showOnMinimap = Settings.ShowOnMinimap && GameController.IngameState.IngameUi.Map.LargeMap.IsVisible;
         if (_labels.Value is { Count: > 0 } labels)
         {
             var allRecipes = GameController.Files.Expedition2Recipes.EntriesList.ToLookup(x => x.RuneCountRequired);
@@ -110,7 +111,7 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                     var first = true;
                     foreach (var (recipe, (value, overridden)) in recipes)
                     {
-                        if (first && Settings.ShowOnMinimap)
+                        if (first && showOnMinimap)
                         {
                             var color = value >= Settings.ValuableColorThreshold ? Settings.ValuableTextColor : Settings.TextColor;
                             var lines = GetMapText(overridden, value, allValidRecipes, label.Data, color);
@@ -133,7 +134,7 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
             //GameController.InspectObject(labels, "Labels");
         }
 
-        if (Settings.ShowOnMinimap)
+        if (showOnMinimap)
         {
             foreach (var entity in entities)
             {
