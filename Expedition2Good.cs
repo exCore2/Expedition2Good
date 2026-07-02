@@ -113,9 +113,8 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                         if (first && Settings.ShowOnMinimap)
                         {
                             var color = value >= Settings.ValuableColorThreshold ? Settings.ValuableTextColor : Settings.TextColor;
-                            var text = GetMapText(overridden, value, allValidRecipes, label.Data);
-                            Graphics.DrawTextWithBackground(text,
-                                Graphics.GridToMap(entity.GridPos, entity.GridPos), color, Color.Black);
+                            var lines = GetMapText(overridden, value, allValidRecipes, label.Data, color);
+                            DrawMapText(lines, Graphics.GridToMap(entity.GridPos, entity.GridPos));
                         }
 
                         var textColor = first ? Settings.TopPickColor : value >= Settings.ValuableColorThreshold ? Settings.ValuableTextColor : Settings.TextColor;
@@ -152,8 +151,8 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                     {
                         var value = recipes.value.Item1;
                         var color = value >= Settings.ValuableColorThreshold ? Settings.ValuableTextColor : Settings.TextColor;
-                        Graphics.DrawTextWithBackground(GetMapText(recipes.value.Item2, recipes.value.Item1, allValidRecipes.Select(x=>x.x).ToList(), data),
-                            Graphics.GridToMap(entity.GridPos, entity.GridPos), color, Color.Black);
+                        var lines = GetMapText(recipes.value.Item2, recipes.value.Item1, allValidRecipes.Select(x => x.x).ToList(), data, color);
+                        DrawMapText(lines, Graphics.GridToMap(entity.GridPos, entity.GridPos));
                         found = true;
                     }
                 }
@@ -215,26 +214,80 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                states.Any(s => s.Name == "activated" && (int)s.Value is 6 or 7 or 8);
     }
 
-    private string GetMapText(bool overridden, double value, IReadOnlyCollection<Expedition2Recipe> recipes, Expedition2EncounterData data)
+    private List<List<(string text, Color color)>> GetMapText(bool overridden, double value, IReadOnlyCollection<Expedition2Recipe> recipes, Expedition2EncounterData data, Color baseColor)
     {
-        var text = $"Rune {(overridden ? "~" : "")}{value:F1} ({data.RuneCount} sockets)";
+        var lines = new List<List<(string text, Color color)>>
+        {
+            new() { ($"Rune {(overridden ? "~" : "")}{value:F1} ({data.RuneCount} sockets)", baseColor) },
+        };
         if (Settings.ShowTransferredRuneSlots && data.PassedOnRunePositions is { Count: > 0 } positions)
         {
             if (Settings.ShowTransferredRuneOptions)
             {
                 foreach (var position in positions)
                 {
-                    var runes = string.Join(",", recipes.Select(x => x.Runes.ElementAtOrDefault(position)).Where(x => x != null).Distinct().Select(r => r.Id).OrderBy(x => x));
-                    text += $"\nTransfers rune {position}: {runes}";
+                    var runeIds = recipes.Select(x => x.Runes.ElementAtOrDefault(position)).Where(x => x != null)
+                        .Select(r => r.Id).Distinct().OrderBy(x => x).ToList();
+                    var segments = new List<(string text, Color color)> { ($"Transfers rune {position}: ", baseColor) };
+                    for (var i = 0; i < runeIds.Count; i++)
+                    {
+                        segments.Add((runeIds[i], GetHighlightColor(runeIds[i]) ?? baseColor));
+                        if (i < runeIds.Count - 1)
+                        {
+                            segments.Add((",", baseColor));
+                        }
+                    }
+
+                    lines.Add(segments);
                 }
             }
             else
             {
-                text += $"\nTransfers rune {string.Join(",", positions)}";
+                lines.Add([($"Transfers rune {string.Join(",", positions)}", baseColor)]);
             }
         }
 
-        return text;
+        return lines;
+    }
+
+    private Color? GetHighlightColor(string runeId)
+    {
+        if (string.IsNullOrEmpty(runeId))
+        {
+            return null;
+        }
+
+        foreach (var rune in Settings.HighlightedTransferredRunes.Content)
+        {
+            if (string.Equals(rune.Name.Value?.Trim(), runeId, StringComparison.OrdinalIgnoreCase))
+            {
+                return rune.HighlightColor.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private void DrawMapText(List<List<(string text, Color color)>> lines, Vector2 anchor)
+    {
+        var y = anchor.Y;
+        foreach (var segments in lines)
+        {
+            var x = anchor.X;
+            var lineHeight = 0f;
+            foreach (var (text, color) in segments)
+            {
+                Graphics.DrawTextWithBackground(text, new Vector2(x, y), color, Color.Black);
+                var size = Graphics.MeasureText(text);
+                x += size.X;
+                if (size.Y > lineHeight)
+                {
+                    lineHeight = size.Y;
+                }
+            }
+
+            y += lineHeight;
+        }
     }
 
     private List<(Expedition2Recipe x, (double, bool) value)> GetRecipes(List<Expedition2RunesWeight> expedition2RunesWeights, int areaLevel, ILookup<int, Expedition2Recipe> allRecipes, Expedition2EncounterData data)

@@ -34,6 +34,10 @@ public class Expedition2GoodSettings : ISettings
     public ToggleNode ShowTransferredRuneSlots { get; set; } = new ToggleNode(true);
     public ToggleNode ShowTransferredRuneOptions { get; set; } = new ToggleNode(true);
 
+    [Menu(null, "A transferred-rune name is drawn in its configured color when it matches one of these entries. Type the rune name exactly as it appears in the 'Transfers rune' line (case-insensitive), then pick a color.")]
+    public ContentNode<HighlightedRune> HighlightedTransferredRunes { get; set; } = new ContentNode<HighlightedRune>
+        { Content = [], EnableControls = true, EnableItemCollapsing = true, ItemFactory = () => new HighlightedRune() };
+
     public ContentNode<PriceOverride> PriceOverrides { get; set; } = new ContentNode<PriceOverride>
         { Content = [], EnableControls = true, EnableItemCollapsing = true, ItemFactory = () => new PriceOverride(), };
     public HashSet<string> KnownRecipes = [];
@@ -47,5 +51,20 @@ public class PriceOverride
     public override string ToString()
     {
         return string.IsNullOrWhiteSpace(Type.Value) ? base.ToString() : $"{Type.Value} -> {Value}";
+    }
+}
+
+[Submenu]
+public class HighlightedRune
+{
+    // Stable identity appended via "###" so the ImGui collapsing header keeps a constant ID while the
+    // visible name changes as you type. Without it, every keystroke is treated as a new widget and the
+    // text field loses focus after a single character.
+    private readonly string _id = System.Guid.NewGuid().ToString("N");
+    public TextNode Name { get; set; } = new TextNode("");
+    public ColorNode HighlightColor { get; set; } = new ColorNode(Color.Gold);
+    public override string ToString()
+    {
+        return $"{(string.IsNullOrWhiteSpace(Name.Value) ? "(unnamed rune)" : Name.Value)}###{_id}";
     }
 }
