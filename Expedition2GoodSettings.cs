@@ -16,6 +16,11 @@ public class Expedition2GoodSettings : ISettings
     public RangeNode<float> ValuableColorThreshold { get; set; } = new RangeNode<float>(50, 0, 10000);
     public ColorNode ValuableTextColor { get; set; } = new ColorNode(Color.Pink);
 
+    [Menu(null, "Color the '(N sockets)' part of the map text when the socket count is at least the minimum below.")]
+    public ToggleNode HighlightSocketCount { get; set; } = new ToggleNode(false);
+    public RangeNode<int> MinimumSocketsToHighlight { get; set; } = new RangeNode<int>(4, 1, 20);
+    public ColorNode SocketCountHighlightColor { get; set; } = new ColorNode(Color.Orange);
+
     [Menu(null, "When greater than 0, recipes with a value below this are hidden. Set to 0 to list every item and value.")]
     public RangeNode<float> MinimumValueToShow { get; set; } = new RangeNode<float>(0, 0, 500);
 
@@ -34,6 +39,13 @@ public class Expedition2GoodSettings : ISettings
     public ToggleNode ShowTransferredRuneSlots { get; set; } = new ToggleNode(true);
     public ToggleNode ShowTransferredRuneOptions { get; set; } = new ToggleNode(true);
 
+    [Menu(null, "When enabled, a transferred-rune line is only drawn if it contains a highlighted rune, and only the highlighted rune(s) are listed on that line.")]
+    public ToggleNode HideNonHighlightedTransferredRunes { get; set; } = new ToggleNode(false);
+
+    [Menu(null, "A transferred-rune name is drawn in its configured color when it matches one of these entries. Type the rune name exactly as it appears in the 'Transfers rune' line (case-insensitive), then pick a color.")]
+    public ContentNode<HighlightedRune> HighlightedTransferredRunes { get; set; } = new ContentNode<HighlightedRune>
+        { Content = [], EnableControls = true, EnableItemCollapsing = true, ItemFactory = () => new HighlightedRune() };
+
     public ContentNode<PriceOverride> PriceOverrides { get; set; } = new ContentNode<PriceOverride>
         { Content = [], EnableControls = true, EnableItemCollapsing = true, ItemFactory = () => new PriceOverride(), };
     public HashSet<string> KnownRecipes = [];
@@ -47,5 +59,17 @@ public class PriceOverride
     public override string ToString()
     {
         return string.IsNullOrWhiteSpace(Type.Value) ? base.ToString() : $"{Type.Value} -> {Value}";
+    }
+}
+
+[Submenu]
+public class HighlightedRune
+{
+    private readonly string _id = System.Guid.NewGuid().ToString("N");
+    public TextNode Name { get; set; } = new TextNode("");
+    public ColorNode HighlightColor { get; set; } = new ColorNode(Color.Gold);
+    public override string ToString()
+    {
+        return $"{(string.IsNullOrWhiteSpace(Name.Value) ? "(unnamed rune)" : Name.Value)}###{_id}";
     }
 }
