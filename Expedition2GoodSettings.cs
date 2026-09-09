@@ -21,6 +21,9 @@ public class Expedition2GoodSettings : ISettings
     public RangeNode<int> MinimumSocketsToHighlight { get; set; } = new RangeNode<int>(4, 1, 20);
     public ColorNode SocketCountHighlightColor { get; set; } = new ColorNode(Color.Orange);
 
+    [Menu(null, "When enabled, remnants whose socket count is at least 'Minimum Sockets To Highlight' ignore 'Minimum Value To Show' and list their recipes anyway.")]
+    public ToggleNode AlwaysShowHighlightedSocketCount { get; set; } = new ToggleNode(false);
+
     [Menu(null, "When greater than 0, recipes with a value below this are hidden. Set to 0 to list every item and value.")]
     public RangeNode<float> MinimumValueToShow { get; set; } = new RangeNode<float>(0, 0, 500);
 
