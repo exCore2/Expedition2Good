@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -94,7 +94,9 @@ public class Expedition2Good : BaseSettingsPlugin<Expedition2GoodSettings>
                     entities.Remove(entity);
                     var recipes = GetRecipes(expedition2RunesWeights, areaLevel, allRecipes, label?.Data);
                     var allValidRecipes = recipes.Select(x => x.x).ToList();
-                    if (Settings.MinimumValueToShow > 0)
+                    var bypassValueFilter = Settings.AlwaysShowHighlightedSocketCount &&
+                                            label?.Data?.RuneCount >= Settings.MinimumSocketsToHighlight;
+                    if (Settings.MinimumValueToShow > 0 && !bypassValueFilter)
                     {
                         recipes = recipes.Where(x => x.value.Item1 >= Settings.MinimumValueToShow).ToList();
                     }
