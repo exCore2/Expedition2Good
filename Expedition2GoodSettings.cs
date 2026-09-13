@@ -45,6 +45,15 @@ public class Expedition2GoodSettings : ISettings
     [Menu(null, "When enabled, a transferred-rune line is only drawn if it contains a highlighted rune, and only the highlighted rune(s) are listed on that line.")]
     public ToggleNode HideNonHighlightedTransferredRunes { get; set; } = new ToggleNode(false);
 
+    [Menu(null, "Shows a screen panel listing all distinct transferred runes from encounters with a selected recipe.")]
+    public ToggleNode ShowTransferredRunesPanel { get; set; } = new ToggleNode(false);
+
+    [Menu(null, "Horizontal position of the transferred-runes panel.")]
+    public RangeNode<int> TransferredRunesPanelX { get; set; } = new RangeNode<int>(100, 0, 4000);
+
+    [Menu(null, "Vertical position of the transferred-runes panel.")]
+    public RangeNode<int> TransferredRunesPanelY { get; set; } = new RangeNode<int>(100, 0, 4000);
+
     [Menu(null, "A transferred-rune name is drawn in its configured color when it matches one of these entries. Type the rune name exactly as it appears in the 'Transfers rune' line (case-insensitive), then pick a color.")]
     public ContentNode<HighlightedRune> HighlightedTransferredRunes { get; set; } = new ContentNode<HighlightedRune>
         { Content = [], EnableControls = true, EnableItemCollapsing = true, ItemFactory = () => new HighlightedRune() };
